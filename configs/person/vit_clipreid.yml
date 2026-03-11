@@ -68,9 +68,9 @@ TEST:
   FEAT_NORM: 'yes'
 
 DATASETS:
-#   NAMES: ('market1501')
-#   ROOT_DIR: ('')
-# OUTPUT_DIR: ''
+  NAMES: ('market1501')
+  ROOT_DIR: ('datasets/dataset')
+OUTPUT_DIR: 'vit_clipreid_market1501/logs'
 
 #   NAMES: ('dukemtmc')
 #   ROOT_DIR: ('')
