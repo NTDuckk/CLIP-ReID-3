@@ -1,0 +1,1448 @@
+
+==================================================
+Page 1
+==================================================
+.
+.
+Latest updates: hps://dl.acm.org/doi/10.1145/3746027.3755580
+.
+.
+RESEARCH-ARTICLE
+Decoupled Identity and Aribute Tokenization for Person Re-
+Identification
+RUI SHANG, Hunan University, Changsha, Hunan, China
+.
+MIN LIU, Hunan University, Changsha, Hunan, China
+.
+XUEPING WANG, Hunan Normal University, Changsha, Hunan, China
+.
+YUAN BIAN, Hunan University, Changsha, Hunan, China
+.
+YAONAN WANG, Hunan University, Changsha, Hunan, China
+.
+.
+.
+Open Access Support provided by:
+.
+Hunan University
+.
+Hunan Normal University
+.
+PDF Download
+3746027.3755580.pdf
+10 January 2026
+Total Citations: 0
+Total Downloads: 103
+.
+.
+Published: 27 October 2025
+.
+.
+Citation in BibTeX format
+.
+.
+MM '25: The 33rd ACM International
+Conference on Multimedia
+October 27 - 31, 2025
+Dublin, Ireland
+.
+.
+Conference Sponsors:
+SIGMM
+MM '25: Proceedings of the 33rd ACM International Conference on Multimedia (October 2025)
+hps://doi.org/10.1145/3746027.3755580
+ISBN: 9798400720352
+.
+
+
+==================================================
+Page 2
+==================================================
+Decoupled Identity and Attribute Tokenization for Person
+Re-Identification
+Rui Shang
+sr03@hnu.edu.cn
+School of Artificial Intelligence and
+Robotics, Hunan University
+Changsha, Hunan, China
+Min Liu∗
+liu_min@hnu.edu.cn
+School of Artificial Intelligence and
+Robotics, Hunan University
+Changsha, Hunan, China
+Xueping Wang∗
+wang_xueping@hnu.edu.cn
+College of Information Science and
+Engineering at Hunan Normal
+University
+Changsha, Hunan, China
+Yuan Bian
+yuanbian@hnu.edu.cn
+School of Artificial Intelligence and
+Robotics, Hunan University
+Changsha, Hunan, China
+Yaonan Wang
+yaonan@hnu.edu.cn
+School of Artificial Intelligence and
+Robotics, Hunan University
+Changsha, Hunan, China
+Abstract
+Vision-language models like CLIP have revolutionized person re-
+identification (ReID) by enabling cross-modal semantic alignment.
+However, most of the existing CLIP-based ReID methods suffer
+from a critical limitation: semantic entanglement, where identity
+and attribute features are indiscriminately compressed into a sin-
+gle, undifferentiated token representation. This oversight fails to
+account for their inherently distinct roles in characterizing individ-
+uals. To address this limitation, we propose an Identity-Attribute-
+Decoupled Tokenization (IADT) method, a hierarchical framework
+with two synergistic components: Subject-oriented tokens that
+model identity through a cross-modality feature inverse mapping
+paradigm, preserving invariant biometric features; Attribute-aware
+tokens that capture localized characteristics through the cross-
+interaction of local features and learnable prototype vectors, dy-
+namically focusing on discriminative regions without manual su-
+pervision. The hierarchical tokenization enables disentangled yet
+complementary representation learning: Identity and attribute se-
+mantics are encoded into distinct embedding subspaces, while
+cross-token contrastive learning establishes semantic reinforce-
+ment through attention-guided feature interaction. Crucially, this
+process does not require part-level annotations, making it directly
+applicable to real-world deployment. Extensive experiments val-
+idate effectiveness of the proposed method. For example, on the
+Market-1501 dataset, IADT achieves 97.1% mAP (+2.5% over SOTA)
+and 98.2% Rank-1 accuracy. For the challenging MSMT benchmark,
+it attains 88.9% mAP (+1.7% improvement) with 93.1% Rank-1 accu-
+racy, demonstrating consistent superiority. The code will be avail-
+able at https://github.com/llraay/IADT.
+∗Corresponding authors: Xueping Wang and Min Liu
+Permission to make digital or hard copies of all or part of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+for profit or commercial advantage and that copies bear this notice and the full citation
+on the first page. Copyrights for components of this work owned by others than the
+author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or
+republish, to post on servers or to redistribute to lists, requires prior specific permission
+and/or a fee. Request permissions from permissions@acm.org.
+MM ’25, Dublin, Ireland
+© 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+ACM ISBN 979-8-4007-2035-2/2025/10
+https://doi.org/10.1145/3746027.3755580
+CCS Concepts
+• Information systems →Image search; • Computing method-
+ologies →Visual content-based indexing and retrieval.
+Keywords
+Person re-identification, Identity and attribute tokenization, Multi-
+modal learning
+ACM Reference Format:
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, and Yaonan Wang. 2025.
+Decoupled Identity and Attribute Tokenization for Person Re-Identification.
+In Proceedings of the 33rd ACM International Conference on Multimedia (MM
+’25), October 27–31, 2025, Dublin, Ireland. ACM, New York, NY, USA, 10 pages.
+https://doi.org/10.1145/3746027.3755580
+1
+Introduction
+Person Re-identification (ReID), a cornerstone of intelligent surveil-
+lance systems, addresses the critical task of retrieving individuals
+across non-overlapping camera networks in real-world environ-
+ments. As an integral component of public safety infrastructure,
+ReID enables cross-camera tracking in large-scale surveillance sys-
+tems deployed in transportation hubs, smart cities, and retail spaces.
+Despite advances in deep learning, practical deployments remain
+challenged by severe intra-class appearance variations induced by
+illumination changes, viewpoint disparities, occlusions, and pose
+diversity[5, 7, 15–17, 38]. These factors hinder model generalizabil-
+ity, highlighting the need for robust feature learning frameworks
+that balance discriminative ability with real-world complexity.
+Convolutional Neural Networks (CNNs) [13] and Vision Trans-
+formers (ViTs)[3, 8, 20] as the main backbone networks have driven
+advancements in person re-identification. CNNs exploit inductive
+biases and hierarchical convolutions to efficiently capture fine-
+grained spatial patterns (e.g., clothing textures). In contrast, ViTs
+leverage global self-attention to adaptively focus on discriminative
+regions (e.g., occluded body parts) and mitigate viewpoint varia-
+tions [27]. CNNs struggle with occlusions/pose shifts due to limited
+receptive fields and redundant spatial partitioning, while ViTs sacri-
+fice local details via patch tokenization and require extensive data to
+avoid overfitting. These uni-modal trade-offs (discriminative detail
+vs. holistic generalization) motivate multimodal approaches.
+6213
+
+
+==================================================
+Page 3
+==================================================
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, & Yaonan Wang
+A photo of  a black
+-jacketed 
+person 
+with white school 
+bag and shiny leat
+her shoes
+𝑣
+𝑙p
+Cross 
+Attention
+Visual 
+Encoder
+Text 
+Encoder
+(c) Ours
+A photo of 
+a 𝑺∗ person with 𝑨∗𝟏𝑨∗𝟐… 𝑨∗𝒌 
+Mapping network
+Mapping network
+𝑣
+A photo of a  𝑺∗ person
+𝑙p
+Cross 
+Attention
+Visual 
+Encoder
+Text 
+Encoder
+(b) PromptSG
+A photo of 
+a black-
+jacketed person
+A photo of a  [𝐗]𝟏[𝐗]𝟐… [𝐗]𝒏 person
+Text 
+Encoder
+Visual 
+Encoder
+Person identity
+Contrastive 
+learning
+(a) CLIP-ReID
+Figure 1: An illustration of CLIP-based person ReID methods. (a) CLIP-ReID [12] maps the person identities into a learnable
+prompt. (b) PromptSG [30] inverse the global visual features into a subject pseudo-word token. (c) Ours maps the global and
+local visual features into subject and attribute pseudo-word tokens, respectively.
+Recent advances in Vision-Language Pre-training (VLP) mod-
+els, such as CLIP [21], have unlocked novel paradigms for person
+re-identification. CLIP’s dual-encoder architecture, pre-trained on
+massive image-text pairs, aligns visual and textual modalities into
+a unified semantic space through contrastive optimization. This
+enables cross-modal transfer of semantic knowledge (e.g., attribute
+descriptions) without requiring additional supervision. Building
+on this, CLIP-based ReID methods like CLIP-ReID [12] enhance
+identity specificity by integrating learnable text prompts—trainable
+vectors appended to identity-specific textual templates—to refine
+visual-textual alignment as shown in Figure 1(a). TSLIP-ReID [24]
+employs textual self-supervision to enhance identity-specific fea-
+ture learning, while PromptSG [30] introduces pseudo-token learn-
+ing to generate context-aware textual descriptions aligned with vi-
+sual semantics as shown in Figure 1(b). Despite their advancements,
+these methods inherit a critical flaw from CLIP’s architecture: se-
+mantic entanglement, where identity and attributes are compressed
+into homogeneous token representations. This conflation limits
+discriminative ability in complex scenarios, such as distinguishing
+individuals with similar attributes or resolving occlusions where
+localized attributes dominate identity cues.
+To address these limitations of existing CLIP-based ReID meth-
+ods, we propose an Identity-Attribute-Decoupled Tokenization
+(IADT) method that decouples identity and attribute semantics
+using natural language-inspired descriptors. Unlike conventional
+approaches that conflate these components into entangled embed-
+dings, IADT aligns with human linguistic cognition by explicitly
+separating identity-centric and attribute-aware semantics as shown
+in Figure 1(c). Specifically, we introduce structured prompts: ‘a
+photo of a 𝑆∗person with 𝐴1∗𝐴2∗· · ·𝐴𝑘∗’, in which 𝑆∗and 𝐴𝑘∗de-
+note identity and attribute tokens, respectively. This design mir-
+rors human descriptions by assigning identity and attribute infor-
+mation to dedicated subspaces within the CLIP embedding space,
+thereby effectively avoiding semantic interference. Then, we pro-
+pose an instance-specific prompt learning framework that inte-
+grates dynamic feature aggregation and context-aware filtering to
+achieve cross-region semantic fusion, generating context-aware
+fine-grained token embeddings. This framework enhances cross-
+modal alignment by adaptively correlating localized visual features
+with their textual counterparts while mitigating overfitting through
+attribute-conditioned regularization and noise suppression. More-
+over, a lightweight hierarchical network, which uses textual em-
+beddings derived from the prompt as the query and patch-wise
+embeddings from the visual encoder as the key and value, bridges
+the inherent gap between linguistic and visual modalities. By syner-
+gizing these components, IADT achieves deeper semantic mining:
+attribute tokens refine local discriminability, while identity tokens
+maintain global distinctiveness, overcoming the ‘discriminative vs.
+holistic’ trade-off in uni-modal ReID.
+Extensive experiments on four public benchmark datasets demon-
+strate the superiority of our method. For example, on the Market-
+1501 dataset, IADT achieves 97.1% mAP (+2.5% over SOTA) and
+98.2% Rank-1 accuracy. For the challenging MSMT benchmark, it at-
+tains 88.9% mAP (+1.7% improvement) with 93.1% Rank-1 accuracy,
+demonstrating consistent superiority.
+To summarize, the contributions of our work are as follows.
+• We propose an Identity-Attribute-Decoupled Tokenization method
+for person re-identification that decouples identity and attribute
+semantics using natural language-inspired descriptors.
+• An instance-specific prompt optimization framework based on
+dynamic feature aggregation and context-aware filtering achieves
+cross-region semantic integration, generating context-aware fine-
+grained token embeddings.
+• Prompt-based cross-modal learning utilizes language prompts
+as a guide for image feature alignment, enabling the model to
+localize regions corresponding to the textual descriptions.
+2
+Related Work
+2.1
+Person re-identification
+Person re-identification has shown amazing promise in the field of
+security and protection. Thanks to the capability demonstrated by
+deep learning, recent work on person re-identification has opted
+for Convolutional Neural Network[6, 28, 31, 36] and Vision Trans-
+former based networks, both of which are the main backbone net-
+works in today’s deep learning era. TransReID[8] is the first to
+bring pure Transformer introduces ReID framework, extracts fea-
+tures through the ViT backbone, and jointly optimizes ID loss and
+triplet loss, which achieves state-of-the-art results. AAFormer[44]
+introduces a part-level dynamic alignment mechanism within the
+Transformer architecture, leveraging learnable part tokens to adap-
+tively localize semantic human/object parts without manual annota-
+tions. DC-Former[14] employs a multi-embedding space decoupling
+strategy, decomposing the feature space into multiple compact sub-
+spaces to enhance diversity. However, CNN-based and ViT-based
+ReID methods primarily rely on visual single-modality and lack
+the ability to integrate textual semantics, which limits the model’s
+generalization understanding of cross-scene person attributes.
+6214
+
+
+==================================================
+Page 4
+==================================================
+Decoupled Identity and Attribute Tokenization for Person Re-Identification
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Attribute Feature Filtering
+𝑳𝒐𝒓𝒕𝒉𝒐
+A photo of 
+a 𝑺∗ person with 𝑨∗𝟏𝑨∗𝟐… 𝑨∗𝒌 
+෥𝒗𝒑
+෥𝒗𝒑
+𝐕𝒑
+𝑳𝑺𝒖𝒑𝒄𝒐𝒏
+Transformer
+Attribute 
+mapping
+𝑨∗𝟏𝑨∗𝟐… 𝑨∗𝒌 
+𝐗
+𝐕𝒑
+Visual 
+Encoder
+Text
+Encoder
+𝑳𝑰𝑫+ 
+𝑳𝑻𝒓𝒊𝒑𝒍𝒆𝒕
+Cross Attention
+Self Attention
+Feed Forward 
+𝑸
+𝑲 𝑽
+Attribute aggregation
+Frozen
+Embeddings
+Loss
+Subject 
+mapping
+Attribute 
+aggregation
+෥𝒗𝒑
+𝐗
+𝒗𝒑𝟏𝒗𝒑𝟐
+𝒗𝒑𝒎
+···
+𝒍𝒑
+Figure 2: Overview of our proposed Identity-Attribute-Decoupled Tokenization framework. Our hierarchical architecture
+consists of: (1) Subject-oriented tokens generated via cross-modal feature inverse mapping to preserve identity-critical biometric
+patterns, and (2) Attribute-aware tokens formed through unsupervised local feature-prototype interactions that dynamically
+attend to discriminative regions. The dual-branch design explicitly decouples persistent identity cues from transient attribute
+features while maintaining their synergistic relationship through shared backbone representations.
+2.2
+Vision-language models for ReID
+Vision-Language pre-training Models (VLMs), capable of simulta-
+neously processing image and text information, establish semantic
+correlations between vision and language, demonstrating excep-
+tional generalization abilities across many downstream tasks[1, 19].
+CLIP (Contrastive Language-Image Pre-training), a landmark work
+in VLMs, maps images and texts into a shared embedding space
+through contrastive learning, achieving cross-modal semantic align-
+ment. Inspired by recent advances in prompt learning from natu-
+ral language processing (NLP)[9], CoOp[40] proposed a dynamic
+prompt learning framework specifically designed for pretrained
+models. Following this soft prompt approach, CLIP-ReID [12] pio-
+neers the adaptation of CLIP for person ReID by classifying images
+into ID specific prompts. Similarly, CSDN [32] introduces bimodal
+learnable natural language descriptions to acquire the semantic
+information corresponding to visual representations of visible and
+infrared images. CCLNet [2] proposes a prompt learning paradigm
+for unsupervised visible-infrared person re-identification by estab-
+lishing a learnable cluster-aware prompt for person images and
+obtain textual descriptions allowing for subsequent unsupervised
+training. Differing from CLIP-ReID, Prompt-driven Semantic Guid-
+ance (PromptSG) [30] focuses on vision-language alignment, whose
+goal is to exploit rich semantic information from language to ex-
+plicitly control the weights assigned to each patch or region, and
+improve the two-stage framework by directly inverting images into
+the language latent space. However, its reliance on simple reverse
+network processing falls short of deeply capturing fine-grained hu-
+man features. In contrast, our model employs a hierarchical design
+that decouples fine-grained information, reduces interference from
+heterogeneous semantic contexts, and highlights attribute-specific
+regions through targeted attention mechanisms.
+3
+Methodology
+In this section, we provide a comprehensive overview of our pro-
+posed framework, as illustrated in Figure 2. Unlike existing methods
+[30] that project images into coarse global pseudo-word tokens,
+our approach introduces an Identity-Attribute-Decoupled Tokeniza-
+tion by decomposing visual content into two distinct types: one
+subject-oriented pseudo-word token and multiple attribute-aware
+pseudo-word tokens. Specifically, we introduce Instance-specific
+Prompt Learning framework that focuses on learning discrimi-
+native attribute information embedded in spatially localized re-
+gions of the image. By aggregating these region-specific features,
+our framework generates attribute-aware tokens that capture nu-
+anced visual details. Moreover, inspired by [30, 32], we introduce
+a multi-modal patch-to-prompt interaction through a language-
+guided cross-attention module that aggregates the attention map
+to emphasize regions with high semantic relevance, allowing the
+model to better align visual and textual information. This design
+addresses the limitations of prior work by explicitly disentangling
+holistic semantic concepts from localized attribute-specific details.
+3.1
+Instance-specific Prompt Learning
+In conventional classification tasks, CLIP achieves strong perfor-
+mance by mapping discrete class labels to semantically rich text
+prompts, a process contingent on manually engineered prompt tem-
+plates. In contrast, person ReID operates under an open-set recog-
+nition framework, where identities are inherently unbounded and
+lack predefined class labels. This fundamental discrepancy poses
+a significant barrier: the absence of explicit semantic categories
+renders conventional CLIP-style prompt engineering inapplicable,
+as no textual descriptors exist to align visual features with identity-
+specific semantics. To address this, we propose using visual features
+6215
+
+
+==================================================
+Page 5
+==================================================
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, & Yaonan Wang
+as guidance to generate adaptive subject/attribute tokens. Based
+on this, we introduce structured prompts: ‘a photo of a 𝑆∗person
+with 𝐴1∗𝐴2∗· · ·𝐴𝑘∗’, in which 𝑆∗and 𝐴𝑘∗denote learnable identity
+and attribute tokens, derived from visual features. Specifically, this
+structure mimics human-centric descriptions while enforcing a
+subspace disentanglement strategy: identity and attribute tokens
+are optimized to occupy orthogonal subspaces within CLIP em-
+bedding space, thereby eliminating semantic interference between
+categorical (identity) and descriptive (attribute) features.
+3.1.1
+Subject-oriented Pseudo-word Token. Following the prior
+works, we design a subject mapping network 𝑓𝑆to project the
+global visual embedding ˜𝑣𝑝∈R𝑑from CLIP’s visual encoder
+into a pseudo-language token in the textual embedding space, i.e.,
+𝑆∗= 𝑓𝑆( ˜𝑣𝑝). This token acts as a context-aware semantic anchor,
+encoding subject-level semantics of the input image while ensuring
+tight alignment between the visual embedding ˜𝑣𝑝and its textual
+counterpart 𝑆∗in CLIP’s shared latent space. By enforcing cross-
+modal consistency, the proposed approach yields a discriminative
+representation that preserves the unique identity characteristics of
+the input, thereby effectively bridging the modality gap between
+vision and language.
+3.1.2
+Attribute-aware Pseudo-word Token. Prior research demon-
+strates that global features struggle to reliably identify individuals
+under occlusions, viewpoint variations, and other real-world com-
+plexities in person re-identification, as they lack fine-grained dis-
+criminative cues. While our initial pseudo-language identity token
+𝑆∗anchors subject-level semantics in CLIP’s shared latent space,
+treating 𝑆∗as a monolithic ‘natural language word’ risks conflat-
+ing heterogeneous semantics. For instance, human descriptions
+prioritize specificity (e.g., ‘an elegant person wearing a suit and
+bowler hat’) over vague abstractions (e.g., ‘an elegant person’). To
+address this, we propose attribute-aware pseudo-word tokens 𝐴𝑘∗,
+which encode fine-grained local attributes by adaptively aggregat-
+ing semantically salient image patches. Unlike generic open-domain
+attribute models, our method prioritizes person-specific attributes
+cues through a dynamic patch fusion mechanism. This mechanism
+employs a domain-specific latent attribute to guide the aggregation
+of localized features while suppressing irrelevant background noise
+via a local-global relevance filtering strategy.
+Attribute extraction: Let V𝑝=
+n
+𝑣𝑖𝑝
+o𝑚
+𝑖=1 ∈R𝑑×𝑚denote the patch-
+wise visual features extracted from the penultimate layer of the
+CLIP visual encoder, 𝑑denotes the dimension of the features, and
+m denotes the number of image patches. Consequently, to capture
+latent attribute information, we initialize a set of learnable query
+embeddings X ∈R𝑑×𝑛, which correspond to the n latent local at-
+tribute features of the images. To adaptively learn discriminative
+local attribute features, we employ a standard Transformer network,
+which leverages self-attention mechanisms to model comprehen-
+sive interactions between input elements. The network processes
+the combined input of learnable query embeddings X ∈R𝑑×𝑛
+(representing latent attribute prototypes) and visual patch features
+V𝑝=
+n
+𝑣𝑖𝑝
+o𝑚
+𝑖=1 ∈R𝑑×𝑚. Through multi-head self-attention layers,
+the Transformer effectively captures spatial-contextual relation-
+ships and outputs refined local attribute representations. To enable
+effective local-global relevance-based filtering, we introduce a di-
+mension alignment module consisting of a fully-connected layer
+that projects the Transformer’s output attributes to match the di-
+mension of the global image feature ˜𝑣𝑝. Formally, this process can
+be expressed as follows,
+X′ = 𝐹𝐶 FTransformer
+ [X|V𝑝]
+(1)
+where [·|·] represents cascade operation, FC denotes the fully con-
+nected network, and X′ =
+
+𝑥′
+𝑖
+	𝑛
+𝑖=1 ∈R𝑑×𝑛denotes the local at-
+tribute features of the image.
+Attribute filtering: While our adaptive local feature aggregation
+effectively captures discriminative attributes, we identify two inher-
+ent challenges: (1) Background noise contamination from repetitive
+or irrelevant regions (e.g., recurring background patterns), and (2)
+Semantic overlap between local attribute features and global fea-
+tures, where attribute descriptors often elaborate on aspects already
+partially encoded in the global representation.
+To mitigate the noise amplification and feature redundancy inher-
+ent in adaptive local feature aggregation, we propose a principled
+attribute selection mechanism grounded in local-global semantic
+relevance. For each projected local attribute feature 𝑥′
+𝑖and global
+image feature ˜𝑣𝑝, we calculate normalized relevance scores 𝑠𝑖=
+˜𝑣⊤𝑝·𝑥′
+𝑖/(∥𝑥′
+𝑖∥·∥˜𝑣𝑝∥). Then ranks attributes by descending relevance
+and finally retains only the top-𝑘features W =
+h
+𝑥′
+𝑗
+i
+,𝑠𝑗∈top-𝑘(𝑆)
+where 𝑠𝑗indicates the semantic relevance between the global image
+feature ˜𝑣and the 𝑗-th learned local attribute feature 𝑥′
+𝑖. Top-𝑘(𝑆)
+denotes the top 𝑘entry values of 𝑆, where 𝑆= [𝑠1,𝑠2, · · · ,𝑠𝑛].
+W ∈R𝑑×𝑘represents the selected valid local attribute features.
+Attribute refining: To ensure distinct semantic representations
+among the local attribute features, we introduce an orthogonal
+constraint on the selected attribute feature matrix W, imposing
+maximal discrimination between learned attributes. Formally, the
+orthogonal regularization loss is defined as:
+Lortho =
+WW⊤−I
+2
+𝐹
+(2)
+where I denotes the identity matrix. This formulation yields two
+key benefits: (1) it promotes diversity among attribute embeddings
+by minimizing inter-feature correlations, and (2) it implicitly sup-
+presses interference from irrelevant features during learning. The
+constraint acts as a regularizer that maintains the geometric inde-
+pendence of attribute directions in the latent space while preserving
+the model’s ability to focus on salient visual characteristics.
+Given the inherent differences between the global image feature
+and local attribute features, we employ another MLP-based attribute
+mapping network, denoted as 𝑓𝐴(·), to project the local attribute
+features into the real-word token embedding space. Mathematically,
+we have
+h
+𝐴1
+∗,𝐴2
+∗, · · ·𝐴𝑘
+∗
+i
+= 𝑓𝐴(W)
+(3)
+By combining the subject and attribute-oriented tokens with a
+generic textual prompt, we construct an adaptive language prompt
+tailored to each image: ‘a photo of a 𝑆∗person with 𝐴1∗𝐴2∗· · ·𝐴𝑘∗’.
+This prompt is tokenized into 𝑡𝑝and processed by CLIP’s text
+encoder, producing the text embedding 𝑙𝑝.
+To guarantee that the learned text embedding 𝑙𝑝effectively rep-
+resents the image semantics and maintains identity consistency,
+6216
+
+
+==================================================
+Page 6
+==================================================
+Decoupled Identity and Attribute Tokenization for Person Re-Identification
+MM ’25, October 27–31, 2025, Dublin, Ireland
+we employ symmetric supervised contrastive loss to encourage the
+text embedding to capture unique visual details.
+LSup
+𝑖2𝑡= 1
+𝑁
+𝑁
+∑︁
+𝑛=1
+∑︁
+𝑝+∈𝑃(𝑛)
+log
+exp(sim(𝑣𝑛,𝑙𝑝+)/𝜏)
+Í𝑁
+𝑖=1 exp(sim(𝑣𝑛,𝑙𝑖)/𝜏)
+,
+LSup
+𝑡2𝑖= 1
+𝑁
+𝑁
+∑︁
+𝑛=1
+∑︁
+𝑝+∈𝑃(𝑛)
+log
+exp(sim(𝑙𝑛, 𝑣𝑝+)/𝜏)
+Í𝑁
+𝑖=1 exp(sim(𝑙𝑛, 𝑣𝑖)/𝜏)
+,
+(4)
+L𝑆𝑢𝑝𝐶𝑜𝑛= LSup
+𝑖2𝑡+ LSup
+𝑡2𝑖,
+(5)
+where 𝑃(𝑛) denotes the positive samples associated with 𝑣𝑛and 𝑙𝑛.
+3.2
+Prompt-based Cross-Modal Learning
+To enhance fine-grained semantic alignment, we further introduce
+the Prompt-based Cross-attention strategy. The core idea of our
+approach is to take advantage of language prompts as a guide for
+image feature alignment, enabling the model to localize regions
+corresponding to the textual descriptions. Specifically, image re-
+gions associated with the semantic concept of ‘person’ and identity-
+defining attributes are prioritized, as these elements are critical for
+discriminative cross-modal matching.
+In order to realize the multimodal intersection of text and image,
+and guide the model to focus on fine-grained information about
+the subject and the attribute, we introduce a multimodal attention
+module, which uses the fused text embedding 𝑙𝑝as the query 𝑄,
+and the image-based visual embedding
+n
+˜𝒗𝑝, 𝒗1𝑝, . . . , 𝒗𝑚
+𝑝
+o
+as keys 𝐾
+and values 𝑉. This process can be represented as follows.
+A(𝑄, 𝐾,𝑉) = Softmax
+𝑄𝐾𝑇
+√
+𝑑
+
+𝑉
+(6)
+This interaction aggregates the attention map to highlight regions
+with high semantic responses. Inspired by multimodal fusion meth-
+ods [4], we introduce two transformer blocks following the cross-
+attention layer to refine the final representations. The framework is
+optimized using the standard ReID loss, which includes the triplet
+loss and the identity classification loss.
+LID = 1
+𝐾
+𝐾
+∑︁
+𝑗=1
+𝑦𝑗log𝑝𝑗
+(7)
+LTriplet = max  𝑑𝑝−𝑑𝑛+ 𝑚, 0
+(8)
+where 𝑝𝑗is the prediction probability for the 𝑗-th class, and 𝑚
+denotes the margin.
+In summary, the total loss of our framework is as follows.
+L = LTriplet + LID + Lortho + 𝜆LSupcon
+(9)
+4
+Experimental Results
+4.1
+Experimental Settings
+4.1.1
+Datasets and Evaluation Protocols. In this section, we evalu-
+ate the performance of our IADT on two ReID tasks: the general
+ReID and occluded ReID on four widely adopted ReID datasets:
+Market-1501[37], MSMT17[29], DukeMTMC-reID[39] and Occluded-
+Duke[18]. Partial information about these datasets is summarized
+Table 1: The statistics of datasets in our experiments
+Dataset
+#ID
+Images
+Cams
+Market-1501
+1,501
+32,668
+6
+MSMT17
+4,101
+126,441
+15
+DukeMTMC
+1,404
+36,411
+8
+Occluded-Duke
+1,404
+35,489
+8
+in Table 1. Rank-1 (R1) accuracy from the Cumulative Match Char-
+acteristic (CMC) curve and mean Average Precision (mAP) are
+employed as evaluation metrics to assess the model’s performance .
+4.1.2
+Implementation Details. For fair comparison with previous
+works, we employ CLIP’s pretrained ResNet-50 and ViT-B/16 mod-
+els as visual encoders. The text encoder maintains a fixed Trans-
+former architecture (CLIP text Transformer). All person images
+are resized to 256×128 resolution and augmented by horizontal
+flipping and random cropping. Training batch size is set to 64, con-
+taining 16 distinct identities with 4 images per identity. We utilize
+the Adam optimizer, setting the learning rate at 5e-6 for visual
+encoders and 5e-5 for randomly initialized modules. A 10-epoch
+warm-up strategy linearly increases the learning rate from 5e-7
+to 5e-6. For CNN-based models, training spans 120 epochs with
+learning rate decayed by 0.1 at epochs 40 and 70, while ViT-based
+models train for 60 epochs with 0.1 decay every 20 epochs. We
+set the number of selected attributes to 16 and 64 for learnable
+queries in the attribute-aware pseudo-word tokens. As mentioned
+earlier, we employ two three-layer MLPs (Multi-layer Perceptrons)
+𝑓𝑆and 𝑓𝐴with 512-dimensional hidden layers to map the subject
+and attribute tokens, respectively. Additionally, a three-layer single-
+head Transformer is utilized to extract image attribute features. The
+framework incorporates a Transformer-based dynamic attribute
+feature aggregation module. In Eq. (9), hyper-parameter 𝜆is set to
+0.1. All experiments are implemented using PyTorch. Comparative
+studies with state-of-the-art (SOTA) methods on DukeMTMC and
+Occluded-Duke datasets are conducted on a single NVIDIA 2080Ti
+GPU, while other experiments use a single NVIDIA 3090 GPU.
+4.2
+Comparison to the SOTA Methods
+We evaluate the proposed IADT against state-of-the-art methods,
+systematically categorizing existing approaches into CNN-based,
+ViT-based, and CLIP-based paradigms. As detailed in Table 2, IADT
+achieves consistent superiority across all four benchmarks, with
+margins of +2.5–8.5% mAP over the best-performing counterparts.
+Notably, our method demonstrates robust cross-architecture gener-
+alization, outperforming both ViT and CNN backbones.
+To verify the generalizability and performance advantages of
+the presented method, we perform a side-by-side comparison with
+the current optimal method on four mainstream datasets, namely
+Market1501, MSMT17, DukeMTMC-reID and Occluded-Duke. The
+experiments show that the proposed method exhibits significant
+advantages in cross-scene, multi-scale and complex interference
+conditions: as shown in Table 2 on the Market1501 dataset, the
+proposed method outperforms the existing optimal model (+1.2%
+Rank-1, +2.5% mAP) with 98.2% Rank-1 and 97.1% mAP, which
+6217
+
+
+==================================================
+Page 7
+==================================================
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, & Yaonan Wang
+Table 2: Comparison with the state-of-the-art models on Market-1501, MSMT17, DukeMTMC, and Occluded-Duke datasets. The
+superscript star* indicates that the image is resized to a resolution exceeding 256x128.
+Backbone
+Methods
+References
+Market-1501
+MSMT17
+DukeMTMC
+Occluded-Duke
+mAP
+R1
+mAP
+R1
+mAP
+R1
+mAP
+R1
+ResNet50
+CNN-based method
+OSNeT[41]
+ICCV’19
+84.9
+94.8
+52.9
+78.7
+73.5
+88.6
+-
+-
+HOReID[25]
+CVPR’20
+-
+-
+84.9
+94.2
+75.6
+86.9
+43.8
+55.1
+ISP[43]
+ECCV’20
+84.9
+94.2
+-
+-
+75.6
+86.9
+52.3
+62.8
+RGA-SC[35]
+CVPR’20
+88.4
+96.1
+57.5
+80.3
+-
+-
+-
+-
+CDNet[10]
+CVPR’21
+86.0
+95.1
+54.7
+78.9
+76.8
+88.6
+-
+-
+CAL[22]
+ICCV’21
+87.0
+94.5
+56.2
+79.5
+76.4
+87.6
+-
+-
+ALDER*[34]
+TIP’21
+88.9
+95.6
+59.1
+82.5
+78.9
+89.9
+-
+-
+LTReID*[26]
+TMM’22
+86.9
+94.7
+58.6
+81.0
+80.4
+90.5
+-
+-
+CLIP-based method
+Baseline
+88.1
+94.7
+60.7
+82.1
+79.3
+88.6
+47.4
+54.2
+CLIP-ReID[12]
+AAAI’23
+89.8
+95.7
+63.0
+84.4
+80.7
+90.0
+53.5
+61.0
+PromptSG[30]
+CVPR’24
+91.8
+96.6
+68.5
+86.0
+80.4
+90.2
+54.0
+59.1
+IADT
+Ours
+94.4
+96.8
+83.1
+87.5
+86.0
+90.5
+62.2
+66.2
+ViT-B/16
+ViT-based method
+TransReID[8]
+ICCV’21
+88.9
+95.2
+67.4
+85.3
+82.0
+90.7
+59.2
+66.4
+DCAL[42]
+CVPR’22
+87.5
+94.7
+64.0
+83.1
+80.1
+89.0
+-
+-
+AAformer[44]
+TNNLS’23
+88.0
+95.4
+65.6
+84.4
+80.9
+90.1
+58.2
+67.0
+PHA[33]
+CVPR’23
+90.2
+96.1
+68.9
+86.1
+-
+-
+-
+-
+CLIP-based method
+Baseline
+86.4
+93.3
+66.1
+84.4
+80.0
+88.8
+53.5
+60.8
+CLIP-ReID[12]
+AAAI’23
+89.6
+95.5
+73.4
+88.7
+82.5
+90.0
+59.5
+67.1
+PromptSG[30]
+CVPR’24
+94.6
+97.0
+87.2
+92.6
+81.6
+91.0
+66.4
+68.4
+IADT
+Ours
+97.1
+98.2
+88.9
+93.1
+91.0
+94.2
+70.9
+74.6
+verifies the effectiveness of the cross-modal feature fusion strat-
+egy. On the large-scale real scene dataset MSMT17, the proposed
+method improves 0.6% and 1.7% on Rank-1 (93.1%) and mAP (88.9%),
+respectively, demonstrating its strong robustness to illumination
+variations and viewpoint differences. In addition, our framework
+also demonstrates superior performance when adopting CNN as
+the backbone. On the MSMT17 dataset, an improvement of about
+15% for mAP is achieved, which is almost on par with existing
+ViT-based methods. The above results consistently show that our
+subject-attribute decoupled and alignment strategy achieves a bal-
+anced performance improvement across datasets without relying
+on fine-grained manual annotation or complex pre-training, and
+provides a better solution for the task of person re-identification.
+4.3
+Ablation Studies
+To validate the necessity of each component in IADT, we perform
+ablation studies on the Market-1501 and MSMT17 datasets under
+identical ViT-B/16 backbone configurations. We systematically eval-
+uate two critical aspects: (1) Instance-specific prompt, (2) Effect of
+attribute-aware tokens.
+4.3.1
+Ablation studies on the instance-specific prompt. The abla-
+tion study in Table 3 evaluates the contribution of key compo-
+nents—subject tokens (𝑆∗) and attribute prompts (𝐴𝑘∗)—on Market-
+1501 and MSMT17. When neither component is used, i.e., ‘a photo
+of a person’ (row a), baseline performance reaches 92.0% mAP /
+96.3% R-1 on Market-1501 and 85.3% mAP / 91.6% R-1 on MSMT17.
+Introducing the subject token (𝑆∗) alone, i.e., ‘a photo of a 𝑆∗person’
+(row b) yields notable improvements: +2.6% mAP and +0.7% R-1 on
+Market-1501, and +1.9% mAP / +1.0% R-1 on MSMT17, demonstrat-
+ing its role in enhancing feature discrimination. Further incorpo-
+rating attribute prompts (𝐴𝑘∗), i.e., our structured prompt ‘a photo
+of a 𝑆∗person with 𝐴1∗𝐴2∗· · ·𝐴𝑘∗’ (row c) elevates performance to
+97.1% mAP / 98.2% R-1 and 88.9% mAP / 93.1% R-1, highlighting
+the complementary effect of attribute-level cues. This validates the
+necessity of both components for robust person re-identification.
+Table 3: Ablation study on training with structured prompts
+of varying compositions on Market-1501 and MSMT17.
+Components
+Market-1501
+MSMT17
+𝑆∗
+𝐴𝑘∗
+mAP
+R-1
+mAP
+R-1
+a)
+92.0
+96.3
+85.3
+91.6
+b)
+✓
+94.6
+97.0
+87.2
+92.6
+c)
+✓
+✓
+97.1
+98.2
+88.9
+93.1
+4.3.2
+Analysis of attribute-aware pseudo-word tokens. To further
+analyze the effectiveness of our attribute-aware pseudo-word to-
+kens, in this section, we conduct two experiments to validate the
+6218
+
+
+==================================================
+Page 8
+==================================================
+Decoupled Identity and Attribute Tokenization for Person Re-Identification
+MM ’25, October 27–31, 2025, Dublin, Ireland
+88.00%
+88.50%
+89.00%
+92.00%
+92.50%
+93.00%
+93.50%
+94.00%
+40
+48
+56
+64
+72
+80
+The number of the learnable queries
+(b) Effect of the number of the learnable queries
+Rank1
+mAP
+88.00%
+88.50%
+89.00%
+92.00%
+92.50%
+93.00%
+93.50%
+94.00%
+4
+8
+12
+16
+20
+The number of the selected attributes
+(a) Effect of the number of the selected attributes
+Rank1
+mAP
+Figure 3: Analysis of influential factors of attribute-aware
+pseudo-word tokens. (a) Effect of the number of the selected
+attributes, (b) Effect of the number of the learnable queries.
+effect caused by the various numbers of selected attributes and
+learnable queries on the challenging MSMT17 dataset.
+Effect of the number of the selected attributes. Figure 3 (a)
+investigates the impact of varying the number of selected attributes.
+As the attribute count increases to 16, mAP exhibits progressive
+improvements. This underscores the critical role of attribute di-
+versity in addressing MSMT17’s inherent complexities, as richer
+attribute sets capture finer visual cues to disambiguate identities
+under variable real-world conditions. However, the diminishing
+marginal gains beyond 16–20 attributes suggest a saturation point,
+where additional features contribute minimally to performance, and
+unavoidable interference caused by background noise. Throughout
+this process, the Rank-1 metric demonstrates strong robustness.
+This highlights a trade-off: sufficient attributes are necessary for
+fine-grained semantic alignment, but excessive attributes introduce
+background noise interference, leading to performance degradation.
+Effect of the number of the learnable queries. Figure 3 (b)
+analyzes the effect of learnable query counts on MSMT17. Increas-
+ing queries (40-64) boosts Rank-1 accuracy, as more queries capture
+fine-grained identity cues in cluttered scenes. The mAP peaks at 64
+queries (88.9%) and slightly declines, suggesting excessive queries
+introduce noise, reducing retrieval consistency. This divergence
+highlights a trade-off: higher queries improve top-match precision
+but risk overfitting to transient patterns. In the experiments, we set
+the number of learnable queries to 64.
+4.4
+Visualization of IADT
+4.4.1
+Attention map visualization. To enable more intuitive analy-
+sis of our model’s effectiveness, we visualize the model’s attention.
+We adopt the general Grad-CAM[23] method to facilitate universal
+comparisons with other approaches. Figure 4 visualizes Grad-CAM
+attention maps to compare our full IADT model with baselines
+Market-1501
+MSMT17
+(a)
+(b)
+(c)
+(d)
+(a)
+(b)
+(c)
+(d)
+Figure 4: Grad-CAM visualization of attention maps. (a) Orig-
+inal images, (b) PromptSG, (c) IADT without 𝐴𝑘∗training, (d)
+IADT. We see our method is effective in simultaneously focus-
+ing on the semantic clues and exploring more discriminative
+parts.
+Rank1
+Rank10
+Rank1
+Rank10
+𝒒𝒖𝒆𝒓𝒚
+𝒒𝒖𝒆𝒓𝒚
+Figure 5: Comparison of top-10 retrieved results for
+PromptSG (the first row) and our IADT (the second row)
+for each query. The incorrectly identified samples are high-
+lighted in red, while the green highlights the correct samples.
+and ablated variants on the MSMT17 dataset. The original images
+(a) highlight challenging scenarios, such as occluded body parts
+or cluttered backgrounds. PromptSG (b) exhibits diffuse attention,
+often focusing on non-discriminative regions (e.g., background ar-
+tifacts), which limits its ability to capture identity-critical features.
+The ablated IADT variant without 𝐴𝑘∗training (c) shows partial im-
+provement, localizing coarse semantic regions (e.g., torso or head)
+but missing fine details (e.g., bags or footwear). In contrast, our full
+IADT model (d) generates precise, high-resolution attention maps
+that prioritize both semantic coherence (e.g., clothing patterns) and
+discriminative attributes (e.g., accessories or unique textures), even
+under occlusion. This demonstrates the necessity of 𝐴𝑘∗training,
+6219
+
+
+==================================================
+Page 9
+==================================================
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, & Yaonan Wang
+which enables adaptive multi-scale attribute learning, guiding the
+model to suppress noise and amplify subtle identity cues. The vi-
+sual results align with quantitative improvements in Tables 2–3,
+where IADT achieves superior Rank-1/mAP scores, underscoring
+that robust attention to discriminative regions directly translates
+to enhanced re-identification accuracy in real-world conditions.
+4.4.2
+Retrieval result visualization. This study conducts cross-camera
+person retrieval experiments on two benchmark datasets, Mar-
+ket1501 and MSMT17, specifically selecting challenging query im-
+ages with substantial interference factors to validate the model’s
+fine-grained feature extraction capability in extreme scenarios. As
+illustrated in Figure 5, the first row demonstrates retrieval results
+from the baseline method PromptSG, while the second row presents
+outcomes of our proposed IADT approach.
+In the first test case, despite severe motion blur causing signifi-
+cant degradation of pedestrian contours and textural details in the
+query image, our method successfully identifies the correct target.
+The second more challenging scenario involves a query image with
+indistinguishable main body information, where our model effec-
+tively focuses on discriminative attribute features - particularly
+a handbag - to achieve accurate recognition. It can be observed
+that PromptSG also notices similar but less precise information,
+resulting in the misrecognition of a highly similar individual. These
+observations substantiate that our method demonstrates enhanced
+attentional sensitivity to fine-grained discriminative features.
+4.5
+Pseudo-to-Real Description Retrieval
+To validate the semantic alignment of our learned subject-oriented
+𝑆∗and attribute-aware [𝐴1∗, ...,𝐴∗𝑘] pseudo-word tokens with natu-
+ral language, we propose a cross-modal retrieval framework. Lever-
+aging BLIP [11]), we construct a 10k-entry real-language attribute
+corpus from pre-training data after filtering out the generic phrases
+(e.g., “blurry photo”) on the Market1501 dataset. Each image is
+encoded as a pseudo-text prompt (“a photo of a 𝑆∗person with
+[𝐴1∗, ...,𝐴𝑘∗]”) within CLIP’s embedding space, and the most related
+description from the top-20 results is retrieved via cosine similarity.
+Considering the person re-identification task, all the subject descrip-
+tions are ‘person’, therefore, we focus more on the retrieval perfor-
+mance regarding the attribute descriptions. As illustrated in Figure
+6, 𝑆∗tokens reliably map to person-centric contexts (e.g., “walking
+down the street”), while [𝐴1∗, ...,𝐴𝑘∗] tokens capture discriminative
+attributes (e.g., “striped shirt”, "holding a bag"). This demonstrates
+that pseudo-tokens not only encode human-interpretable seman-
+tics but also bridge the latent space between visual representations
+and textual descriptions, a critical advancement for explainable
+cross-modal ReID systems.
+4.6
+Hyperparameter Analyses
+As shown in the Figure 7, we analyze the impact of the hyperpa-
+rameter 𝜆in the Eq. 9 on mAP and Rank-1 metrics. It can be seen
+that IADT achieves the best performance at 𝜆= 0.1. Increasing 𝜆
+led to a general decline in both mAP and Rank-1. The performance
+decline at higher 𝜆values potentially stems from over-alignment:
+CLIP’s contrastive loss, when excessively weighted, rigidly forces
+image-text alignment in ReID’s high inter-class similarity setting,
+suppressing subtle visual distinctions. Limited textual diversity
+Figure 6: Pseudo-to-real description retrieved results. We
+highlight the related real-word descriptions in green.
+85.50%
+86.50%
+87.50%
+88.50%
+89.50%
+90.50%
+91.50%
+92.50%
+93.50%
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+mAP
+Rank1
+𝜆
+Figure 7: The influence of different weights of 𝜆on the mAP
+and Rank-1 metrics on MSMT17.
+(e.g., generic ID labels) fails to guide nuanced feature separation,
+while dominant contrastive loss overshadows discriminative objec-
+tives, collapsing features of visually similar classes. CLIP’s general-
+purpose design, optimized for broad cross-modal tasks, struggles
+to preserve fine-grained ReID-specific boundaries under aggres-
+sive alignment. Optimal performance likely requires balancing 𝜆to
+maintain alignment without sacrificing granularity.
+5
+Conclusion
+This paper proposes an effective framework called Identity-Attribute-
+Decoupled Tokenization (IADT) for person re-identification tasks,
+built upon the CLIP model. Unlike existing solutions, IADT in-
+tegrates subject-oriented and attribute-aware tokens to address
+the semantic entanglement limitation of current methods through
+identity-attribute disentangled tokens. To capture fine-grained in-
+formation and suppress background noise, we employ an instance-
+specific prompt learning strategy combined with a local-global
+relevance-based filtering mechanism. Furthermore, by designing
+a structured text prompt template—“a photo of a 𝑆∗person with
+𝐴1∗𝐴2∗· · ·𝐴𝑘∗”—we guide the model to focus on discriminative fea-
+tures and achieve state-of-the-art recognition performance on four
+challenging ReID datasets. This framework demonstrates the ef-
+fectiveness of identity-attribute disentanglement and fine-grained
+feature learning for robust cross-modal person re-identification.
+6220
+
+
+==================================================
+Page 10
+==================================================
+Decoupled Identity and Attribute Tokenization for Person Re-Identification
+MM ’25, October 27–31, 2025, Dublin, Ireland
+6
+Acknowledgment
+This work was supported by the National Natural Science Founda-
+tion of China(62425305, 62221002 and 62203168), the Science and
+Technology Innovation Program of Hunan Province(2024RC3151
+and 2023RC1048), and the Natural Science Foundation of Hunan
+Province under Grant 2024JJ3013.
+References
+[1] Xiaohua Chen, Yucan Zhou, Dayan Wu, Chule Yang, Bo Li, Qinghua Hu, and
+Weiping Wang. 2023. Area: adaptive reweighting via effective area for long-tailed
+classification. In Proceedings of the IEEE/CVF International Conference on Computer
+Vision. 19277–19287.
+[2] Zhong Chen, Zhizhong Zhang, Xin Tan, Yanyun Qu, and Yuan Xie. 2023. Unveil-
+ing the power of clip in unsupervised visible-infrared person re-identification. In
+Proceedings of the 31st ACM International Conference on Multimedia. 3667–3675.
+[3] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xi-
+aohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
+Heigold, Sylvain Gelly, et al. 2020. An image is worth 16x16 words: Transformers
+for image recognition at scale. arXiv preprint arXiv:2010.11929 (2020).
+[4] Zi-Yi Dou, Yichong Xu, Zhe Gan, Jianfeng Wang, Shuohang Wang, Lijuan Wang,
+Chenguang Zhu, Pengchuan Zhang, Lu Yuan, Nanyun Peng, et al. 2022. An
+empirical study of training end-to-end vision-and-language transformers. In
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+18166–18176.
+[5] Jianyang Gu, Kai Wang, Hao Luo, Chen Chen, Wei Jiang, Yuqiang Fang, Shang-
+hang Zhang, Yang You, and Jian Zhao. 2023. Msinet: Twins contrastive search of
+multi-scale interaction for object reid. In Proceedings of the IEEE/CVF conference
+on computer vision and pattern recognition. 19243–19253.
+[6] Xinqian Gu, Hong Chang, Bingpeng Ma, Shutao Bai, Shiguang Shan, and Xilin
+Chen. 2022. Clothes-changing person re-identification with rgb modality only. In
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+1060–1069.
+[7] Lingxiao He, Xingyu Liao, Wu Liu, Xinchen Liu, Peng Cheng, and Tao Mei. 2023.
+Fastreid: A pytorch toolbox for general instance re-identification. In Proceedings
+of the 31st ACM International Conference on Multimedia. 9664–9667.
+[8] Shuting He, Hao Luo, Pichao Wang, Fan Wang, Hao Li, and Wei Jiang. 2021.
+Transreid: Transformer-based object re-identification. (2021), 15013–15022.
+[9] Zhengbao Jiang, Frank F Xu, Jun Araki, and Graham Neubig. 2020. How can we
+know what language models know? Transactions of the Association for Computa-
+tional Linguistics 8 (2020), 423–438.
+[10] Hanjun Li, Gaojie Wu, and Wei-Shi Zheng. 2021. Combined depth space based
+architecture search for person re-identification. In Proceedings of the IEEE/CVF
+conference on computer vision and pattern recognition. 6729–6738.
+[11] Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. 2022. Blip: Bootstrapping
+language-image pre-training for unified vision-language understanding and
+generation. In International conference on machine learning. PMLR, 12888–12900.
+[12] Siyuan Li, Li Sun, and Qingli Li. 2023. Clip-reid: exploiting vision-language
+model for image re-identification without concrete text labels. In Proceedings of
+the AAAI conference on artificial intelligence, Vol. 37. 1405–1413.
+[13] Wei Li, Rui Zhao, Tong Xiao, and Xiaogang Wang. 2014. Deepreid: Deep filter
+pairing neural network for person re-identification. In Proceedings of the IEEE
+conference on computer vision and pattern recognition. 152–159.
+[14] Wen Li, Cheng Zou, Meng Wang, Furong Xu, Jianan Zhao, Ruobing Zheng, Yuan
+Cheng, and Wei Chu. 2023. Dc-former: Diverse and compact transformer for
+person re-identification. 37, 2 (2023), 1415–1423.
+[15] Min Liu, Yuan Bian, Qing Liu, Xueping Wang, and Yaonan Wang. 2023.
+Weakly supervised tracklet association learning with video labels for person
+re-identification. IEEE Transactions on Pattern Analysis and Machine Intelligence
+46, 5 (2023), 3595–3607.
+[16] Min Liu, Fei Wang, Xueping Wang, Yaonan Wang, and Amit K Roy-Chowdhury.
+2024.
+A two-stage noise-tolerant paradigm for label corrupted person re-
+identification. IEEE Transactions on Pattern Analysis and Machine Intelligence 46,
+7 (2024), 4944–4956.
+[17] Djebril Mekhazni, Maximilien Dufau, Christian Desrosiers, Marco Pedersoli, and
+Eric Granger. 2023. Camera alignment and weighted contrastive learning for
+domain adaptation in video person reid. In Proceedings of the IEEE/CVF Winter
+Conference on Applications of Computer Vision. 1624–1633.
+[18] Jiaxu Miao, Yu Wu, Ping Liu, Yuhang Ding, and Yi Yang. 2019. Pose-guided
+feature alignment for occluded person re-identification. In Proceedings of the
+IEEE/CVF international conference on computer vision. 542–551.
+[19] Ron Mokady, Amir Hertz, and Amit H Bermano. 2021. Clipcap: Clip prefix for
+image captioning. arXiv preprint arXiv:2111.09734 (2021).
+[20] Nguyen Phan, Ta Duc Huy, Soan TM Duong, Nguyen Tran Hoang, Sam Tran,
+Dao Huu Hung, Chanh D Tr Nguyen, Trung Bui, and Steven QH Truong. 2023.
+Logovit: Local-global vision transformer for object re-identification. (2023), 1–5.
+[21] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
+Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark,
+et al. 2021. Learning transferable visual models from natural language supervision.
+In International conference on machine learning. PmLR, 8748–8763.
+[22] Yongming Rao, Guangyi Chen, Jiwen Lu, and Jie Zhou. 2021. Counterfactual
+attention learning for fine-grained visual categorization and re-identification. In
+Proceedings of the IEEE/CVF international conference on computer vision. 1025–
+1034.
+[23] Ramprasaath R Selvaraju, Michael Cogswell, Abhishek Das, Ramakrishna Vedan-
+tam, Devi Parikh, and Dhruv Batra. 2017. Grad-cam: Visual explanations from
+deep networks via gradient-based localization. In Proceedings of the IEEE interna-
+tional conference on computer vision. 618–626.
+[24] Bin Wang, Huakun Huang, Guowei Liu, Yatie Xiao, Lingjun Zhao, and Zhenbang
+Liu. 2024. Text Self-Supervision Enhances Visual-Language Learning for Per-
+son Re-Identification. In 2024 IEEE 17th International Symposium on Embedded
+Multicore/Many-core Systems-on-Chip (MCSoC). IEEE, 63–69.
+[25] Guan’an Wang, Shuo Yang, Huanyu Liu, Zhicheng Wang, Yang Yang, Shuliang
+Wang, Gang Yu, Erjin Zhou, and Jian Sun. 2020. High-order information mat-
+ters: Learning relation and topology for occluded person re-identification. In
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition.
+6449–6458.
+[26] Pingyu Wang, Zhicheng Zhao, Fei Su, and Hongying Meng. 2022. Ltreid: Factor-
+izable feature generation with independent components for long-tailed person
+re-identification. IEEE Transactions on Multimedia 25 (2022), 4610–4622.
+[27] Tao Wang, Hong Liu, Pinhao Song, Tianyu Guo, and Wei Shi. 2022. Pose-guided
+feature disentangling for occluded person re-identification based on transformer.
+In Proceedings of the AAAI conference on artificial intelligence, Vol. 36. 2540–2549.
+[28] Longhui Wei, Xiaobin Liu, Jianing Li, and Shiliang Zhang. 2018. VP-ReID: Ve-
+hicle and person re-identification system. In Proceedings of the 2018 ACM on
+International Conference on Multimedia Retrieval. 501–504.
+[29] Longhui Wei, Shiliang Zhang, Wen Gao, and Qi Tian. 2018. Person transfer
+gan to bridge domain gap for person re-identification. In Proceedings of the IEEE
+conference on computer vision and pattern recognition. 79–88.
+[30] Zexian Yang, Dayan Wu, Chenming Wu, Zheng Lin, Jingzi Gu, and Weiping
+Wang. 2024. A pedestrian is worth one prompt: Towards language guidance
+person re-identification. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition. 17343–17353.
+[31] Hantao Yao, Shiliang Zhang, Richang Hong, Yongdong Zhang, Changsheng
+Xu, and Qi Tian. 2019. Deep representation learning with part loss for person
+re-identification. IEEE Transactions on Image Processing 28, 6 (2019), 2860–2871.
+[32] Xiaoyan Yu, Neng Dong, Liehuang Zhu, Hao Peng, and Dapeng Tao. 2025. Clip-
+driven semantic discovery network for visible-infrared person re-identification.
+IEEE Transactions on Multimedia (2025).
+[33] Guiwei Zhang, Yongfei Zhang, Tianyu Zhang, Bo Li, and Shiliang Pu. 2023.
+Pha: Patch-wise high-frequency augmentation for transformer-based person
+re-identification. In Proceedings of the IEEE/CVF conference on computer vision
+and pattern recognition. 14133–14142.
+[34] Quan Zhang, Jianhuang Lai, Zhanxiang Feng, and Xiaohua Xie. 2021. Seeing like a
+human: Asynchronous learning with dynamic progressive refinement for person
+re-identification. IEEE Transactions on Image Processing 31 (2021), 352–365.
+[35] Zhizheng Zhang, Cuiling Lan, Wenjun Zeng, Xin Jin, and Zhibo Chen. 2020.
+Relation-aware global attention for person re-identification. In Proceedings of the
+ieee/cvf conference on computer vision and pattern recognition. 3186–3195.
+[36] Liming Zhao, Xi Li, Yueting Zhuang, and Jingdong Wang. 2017. Deeply-learned
+part-aligned representations for person re-identification. In Proceedings of the
+IEEE international conference on computer vision. 3219–3228.
+[37] Liang Zheng, Liyue Shen, Lu Tian, Shengjin Wang, Jingdong Wang, and Qi Tian.
+2015. Scalable person re-identification: A benchmark. In Proceedings of the IEEE
+international conference on computer vision. 1116–1124.
+[38] Liang Zheng, Yi Yang, and Alexander G Hauptmann. 2016.
+Person re-
+identification: Past, present and future. arXiv preprint arXiv:1610.02984 (2016).
+[39] Zhedong Zheng, Liang Zheng, and Yi Yang. 2017. Unlabeled samples generated
+by gan improve the person re-identification baseline in vitro. In Proceedings of
+the IEEE international conference on computer vision. 3754–3762.
+[40] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. 2022. Learning
+to prompt for vision-language models. International Journal of Computer Vision
+130, 9 (2022), 2337–2348.
+[41] Kaiyang Zhou, Yongxin Yang, Andrea Cavallaro, and Tao Xiang. 2019. Omni-
+scale feature learning for person re-identification. In Proceedings of the IEEE/CVF
+international conference on computer vision. 3702–3712.
+[42] Haowei Zhu, Wenjing Ke, Dong Li, Ji Liu, Lu Tian, and Yi Shan. 2022. Dual
+cross-attention learning for fine-grained visual categorization and object re-
+identification. In Proceedings of the IEEE/CVF conference on computer vision and
+pattern recognition. 4692–4702.
+[43] Kuan Zhu, Haiyun Guo, Zhiwei Liu, Ming Tang, and Jinqiao Wang. 2020. Identity-
+guided human semantic parsing for person re-identification. In European confer-
+ence on computer vision. Springer, 346–363.
+6221
+
+
+==================================================
+Page 11
+==================================================
+MM ’25, October 27–31, 2025, Dublin, Ireland
+Rui Shang, Min Liu, Xueping Wang, Yuan Bian, & Yaonan Wang
+[44] Kuan Zhu, Haiyun Guo, Shiliang Zhang, Yaowei Wang, Jing Liu, Jinqiao Wang,
+and Ming Tang. 2023.
+Aaformer: Auto-aligned transformer for person re-
+identification. IEEE transactions on neural networks and learning systems (2023).
+6222
