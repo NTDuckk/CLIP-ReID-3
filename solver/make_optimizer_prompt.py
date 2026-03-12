@@ -2,20 +2,33 @@ import torch
 
 
 def make_optimizer_1stage(cfg, model):
+    # Freeze all parameters then enable gradients only for parameters
+    # whose name contains "inversion_prompt_learner" (stage1 text inversion prompts).
+    for p in model.parameters():
+        p.requires_grad = False
+
     params = []
-    keys = []
-    for key, value in model.named_parameters():
-        if "inversion_prompt_learner" in key:
+    found = []
+    for name, param in model.named_parameters():
+        if "inversion_prompt_learner" in name:
+            param.requires_grad = True
             lr = cfg.SOLVER.STAGE1.BASE_LR
             weight_decay = cfg.SOLVER.STAGE1.WEIGHT_DECAY
-            params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
-            keys += [key]
-    if cfg.SOLVER.STAGE1.OPTIMIZER_NAME == 'SGD':
-        optimizer = getattr(torch.optim, cfg.SOLVER.STAGE1.OPTIMIZER_NAME)(params, momentum=cfg.SOLVER.STAGE1.MOMENTUM)
-    elif cfg.SOLVER.STAGE1.OPTIMIZER_NAME == 'AdamW':
+            params.append({"params": [param], "lr": lr, "weight_decay": weight_decay})
+            found.append(name)
+
+    if len(found) == 0:
+        raise RuntimeError("No parameters with 'inversion_prompt_learner' found for stage1 optimizer")
+
+    opt_name = cfg.SOLVER.STAGE1.OPTIMIZER_NAME
+    if opt_name == 'SGD':
+        momentum = getattr(cfg.SOLVER.STAGE1, 'MOMENTUM', 0.9)
+        optimizer = torch.optim.SGD(params, lr=cfg.SOLVER.STAGE1.BASE_LR, momentum=momentum, weight_decay=cfg.SOLVER.STAGE1.WEIGHT_DECAY)
+    elif opt_name == 'AdamW':
         optimizer = torch.optim.AdamW(params, lr=cfg.SOLVER.STAGE1.BASE_LR, weight_decay=cfg.SOLVER.STAGE1.WEIGHT_DECAY)
     else:
-        optimizer = getattr(torch.optim, cfg.SOLVER.STAGE1.OPTIMIZER_NAME)(params)
+        optimizer = getattr(torch.optim, opt_name)(params)
+
     return optimizer
 
 
