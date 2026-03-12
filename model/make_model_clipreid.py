@@ -199,8 +199,30 @@ def load_clip_to_cpu(backbone_name, h_resolution, w_resolution, vision_stride_si
 
     return model
 
+class IM2TEXT(nn.Module):
+    """AP-Attack style MLP: maps image features to pseudo-token embeddings."""
+    def __init__(self, embed_dim=512, middle_dim=512, output_dim=512, n_layer=3, dropout=0.1):
+        super().__init__()
+        self.fc_out = nn.Linear(middle_dim, output_dim)
+        layers = []
+        dim = embed_dim
+        for _ in range(n_layer):
+            block = []
+            block.append(nn.Linear(dim, middle_dim))
+            block.append(nn.Dropout(dropout))
+            block.append(nn.ReLU())
+            dim = middle_dim
+            layers.append(nn.Sequential(*block))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor):
+        for layer in self.layers:
+            x = layer(x)
+        return self.fc_out(x)
+
+
 class InversionPromptLearner(nn.Module):
-    """AP-Attack inspired textual inversion: 5 MLP networks map image features to pseudo-tokens."""
+    """AP-Attack inspired textual inversion: IM2TEXT networks map image features to pseudo-tokens."""
     def __init__(self, dataset_name, dtype, token_embedding, clip_proj_dim=512):
         super().__init__()
         if dataset_name == "VehicleID" or dataset_name == "veri":
@@ -227,16 +249,15 @@ class InversionPromptLearner(nn.Module):
         self.dtype = dtype
 
         ctx_dim = embedding.shape[-1]  # 512
-        hidden_dim = 1024
 
-        # 5 three-layer MLP inversion networks (shared across all IDs)
+        # 5 IM2TEXT inversion networks (AP-Attack style: Linear→Dropout→ReLU blocks + fc_out)
         self.inversion_nets = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(clip_proj_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, ctx_dim),
+            IM2TEXT(
+                embed_dim=clip_proj_dim,
+                middle_dim=512,
+                output_dim=ctx_dim,
+                n_layer=3,
+                dropout=0.1
             ) for _ in range(self.num_attributes)
         ])
 

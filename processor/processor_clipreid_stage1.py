@@ -41,6 +41,7 @@ def do_train_stage1(cfg,
     # Step 1: Pre-extract image features (frozen image encoder)
     image_features = []
     labels = []
+    model.eval()
     with torch.no_grad():
         for n_iter, (img, vid, target_cam, target_view) in enumerate(train_loader_stage1):
             img = img.to(device)
