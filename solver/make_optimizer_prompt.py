@@ -37,14 +37,14 @@ def make_optimizer_2stage(cfg, model, center_criterion):
     params = []
     keys = []
     for key, value in model.named_parameters():
-        if "text_encoder" in key:
-            value.requires_grad_(False)
-            continue   
-        if "prompt_learner" in key:
+        # Exclude text encoder and any prompt learner params from stage2 training
+        if "text_encoder" in key or "prompt_learner" in key or "inversion_prompt_learner" in key:
             value.requires_grad_(False)
             continue
-        if not value.requires_grad:
-            continue
+
+        # Enable training for remaining parameters (ensure not empty)
+        value.requires_grad_(True)
+
         lr = cfg.SOLVER.STAGE2.BASE_LR
         weight_decay = cfg.SOLVER.STAGE2.WEIGHT_DECAY
         if "bias" in key:
@@ -54,11 +54,14 @@ def make_optimizer_2stage(cfg, model, center_criterion):
             if "classifier" in key or "arcface" in key:
                 lr = cfg.SOLVER.BASE_LR * 2
                 print('Using two times learning rate for fc ')
-        
+
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
         keys += [key]
+    if len(params) == 0:
+        raise RuntimeError("No parameters found for stage2 optimizer. Check model parameter names or previous freezing.")
+
     if cfg.SOLVER.STAGE2.OPTIMIZER_NAME == 'SGD':
-        optimizer = getattr(torch.optim, cfg.SOLVER.STAGE2.OPTIMIZER_NAME)(params, momentum=cfg.SOLVER.STAGE2.MOMENTUM)
+        optimizer = torch.optim.SGD(params, lr=cfg.SOLVER.STAGE2.BASE_LR, momentum=cfg.SOLVER.STAGE2.MOMENTUM, weight_decay=cfg.SOLVER.STAGE2.WEIGHT_DECAY)
     elif cfg.SOLVER.STAGE2.OPTIMIZER_NAME == 'AdamW':
         optimizer = torch.optim.AdamW(params, lr=cfg.SOLVER.STAGE2.BASE_LR, weight_decay=cfg.SOLVER.STAGE2.WEIGHT_DECAY)
     else:
