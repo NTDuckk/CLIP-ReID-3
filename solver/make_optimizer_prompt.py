@@ -12,7 +12,14 @@ def make_optimizer_1stage(cfg, model):
     for name, param in model.named_parameters():
         if "inversion_prompt_learner" in name:
             param.requires_grad = True
-            lr = cfg.SOLVER.STAGE1.BASE_LR
+            # cap inversion LR to a safe value to avoid instability
+            base_lr = float(getattr(cfg.SOLVER.STAGE1, 'BASE_LR', 3e-4))
+            safe_peak = 5e-4
+            if base_lr > safe_peak:
+                lr = safe_peak
+                print(f"Capping Stage1 inversion lr {base_lr} -> {lr} to avoid instability")
+            else:
+                lr = base_lr
             weight_decay = cfg.SOLVER.STAGE1.WEIGHT_DECAY
             params.append({"params": [param], "lr": lr, "weight_decay": weight_decay})
             found.append(name)

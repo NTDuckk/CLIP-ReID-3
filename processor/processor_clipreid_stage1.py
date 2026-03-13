@@ -142,8 +142,22 @@ def do_train_stage1(cfg,
             loss = loss_i2t + loss_t2i
 
             scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+
+            # Unscale gradients, clip, then step. This helps prevent instability/NaN.
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                (p for p in model.parameters() if p.grad is not None), max_norm=1.0
+            )
+
+            # Guard against NaN/Inf loss: skip step if detected
+            if not torch.isfinite(loss):
+                logger = logging.getLogger("transreid.train")
+                logger.warning(f"Non-finite loss {loss.item()} detected — skipping optimizer step")
+                optimizer.zero_grad()
+                scaler.update()
+            else:
+                scaler.step(optimizer)
+                scaler.update()
 
             loss_meter.update(loss.item(), b_list.shape[0])
 
