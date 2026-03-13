@@ -15,7 +15,7 @@ class SupConLoss(nn.Module):
     def forward(self, text_features, image_features, t_label, i_targets): 
         batch_size = text_features.shape[0] 
         batch_size_N = image_features.shape[0] 
-        mask = torch.eq(t_label.unsqueeze(1).expand(batch_size, batch_size_N), \
+        mask = torch.eq(t_label.unsqueeze(1).expand(batch_size, batch_size_N),\
             i_targets.unsqueeze(0).expand(batch_size,batch_size_N)).float().to(self.device) 
 
         logits = torch.div(torch.matmul(text_features, image_features.T),self.temperature)
@@ -28,3 +28,6 @@ class SupConLoss(nn.Module):
         loss = - mean_log_prob_pos.mean()
 
         return loss
+    
+    
+    

@@ -10,6 +10,18 @@ import torch.distributed as dist
 from torch.nn import functional as F
 from loss.supcontrast import SupConLoss
 
+
+def _check_stage2_text_features(text_features, num_classes=None):
+    if text_features is None:
+        raise RuntimeError("text_features is None in Stage2")
+    if text_features.dim() != 2:
+        raise RuntimeError(f"text_features must be [C, D], got {tuple(text_features.shape)}")
+    if num_classes is not None and text_features.size(0) != num_classes:
+        raise RuntimeError(
+            f"text_features class count mismatch: expected {num_classes}, got {text_features.size(0)}"
+        )
+
+
 def do_train_stage2(cfg,
              model,
              center_criterion,
@@ -31,12 +43,11 @@ def do_train_stage2(cfg,
 
     logger = logging.getLogger("transreid.train")
     logger.info('start training')
-    _LOCAL_PROCESS_GROUP = None
     if device:
         model.to(local_rank)
         if torch.cuda.device_count() > 1:
             print('Using {} GPUs for training'.format(torch.cuda.device_count()))
-            model = nn.DataParallel(model)  
+            model = nn.DataParallel(model)
             num_classes = model.module.num_classes
         else:
             num_classes = model.num_classes
@@ -47,33 +58,34 @@ def do_train_stage2(cfg,
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
     scaler = amp.GradScaler()
     xent = SupConLoss(device)
-    
-    # train
+
     import time
     from datetime import timedelta
     all_start_time = time.monotonic()
 
-    # Use pre-computed text features from Stage 1 inversion, or compute from PromptLearner
+    # Use pre-computed text features from Stage 1, or compute from PromptLearner.
     if precomputed_text_features is not None:
-        text_features = precomputed_text_features.cuda()
-        logger.info("Using pre-computed text features from Stage 1 inversion, shape: {}".format(text_features.shape))
+        text_features = precomputed_text_features.cuda().float()
+        _check_stage2_text_features(text_features, num_classes=num_classes)
+        logger.info("Using pre-computed Stage1 text features, shape: {}".format(text_features.shape))
     else:
         batch = cfg.SOLVER.STAGE2.IMS_PER_BATCH
         i_ter = num_classes // batch
-        left = num_classes-batch* (num_classes//batch)
-        if left != 0 :
-            i_ter = i_ter+1
+        left = num_classes - batch * (num_classes // batch)
+        if left != 0:
+            i_ter = i_ter + 1
         text_features = []
         with torch.no_grad():
             for i in range(i_ter):
-                if i+1 != i_ter:
-                    l_list = torch.arange(i*batch, (i+1)* batch)
+                if i + 1 != i_ter:
+                    l_list = torch.arange(i * batch, (i + 1) * batch)
                 else:
-                    l_list = torch.arange(i*batch, num_classes)
+                    l_list = torch.arange(i * batch, num_classes)
                 with amp.autocast(enabled=True):
-                    text_feature = model(label = l_list, get_text = True)
-                text_features.append(text_feature.cpu())
-            text_features = torch.cat(text_features, 0).cuda()
+                    text_feature = model(label=l_list, get_text=True)
+                text_features.append(text_feature.float().cpu())
+            text_features = torch.cat(text_features, 0).cuda().float()
+            _check_stage2_text_features(text_features, num_classes=num_classes)
 
     for epoch in range(1, epochs + 1):
         start_time = time.time()
@@ -82,8 +94,8 @@ def do_train_stage2(cfg,
         evaluator.reset()
 
         scheduler.step()
-
         model.train()
+
         for n_iter, (img, vid, target_cam, target_view) in enumerate(train_loader_stage2):
             optimizer.zero_grad()
             optimizer_center.zero_grad()
@@ -91,19 +103,27 @@ def do_train_stage2(cfg,
             target = vid.to(device)
             if cfg.MODEL.SIE_CAMERA:
                 target_cam = target_cam.to(device)
-            else: 
+            else:
                 target_cam = None
             if cfg.MODEL.SIE_VIEW:
                 target_view = target_view.to(device)
-            else: 
+            else:
                 target_view = None
+
             with amp.autocast(enabled=True):
-                score, feat, image_features = model(x = img, label = target, cam_label=target_cam, view_label=target_view)
-                logits = image_features @ text_features.t()
-                loss = loss_fn(score, feat, target, target_cam, logits)
+                score, feat, image_features = model(x=img, label=target, cam_label=target_cam, view_label=target_view)
+
+            if image_features.dim() != 2:
+                raise RuntimeError(f"image_features must be [B, D], got {tuple(image_features.shape)}")
+            if image_features.size(1) != text_features.size(1):
+                raise RuntimeError(
+                    f"Feature dim mismatch for Stage2 logits: image_features {tuple(image_features.shape)} vs text_features {tuple(text_features.shape)}"
+                )
+
+            logits = image_features.float() @ text_features.t()
+            loss = loss_fn(score, feat, target, target_cam, logits)
 
             scaler.scale(loss).backward()
-
             scaler.step(optimizer)
             scaler.update()
 
@@ -114,7 +134,6 @@ def do_train_stage2(cfg,
                 scaler.update()
 
             acc = (logits.max(1)[1] == target).float().mean()
-
             loss_meter.update(loss.item(), img.shape[0])
             acc_meter.update(acc, 1)
 
@@ -150,11 +169,11 @@ def do_train_stage2(cfg,
                             img = img.to(device)
                             if cfg.MODEL.SIE_CAMERA:
                                 camids = camids.to(device)
-                            else: 
+                            else:
                                 camids = None
                             if cfg.MODEL.SIE_VIEW:
                                 target_view = target_view.to(device)
-                            else: 
+                            else:
                                 target_view = None
                             feat = model(img, cam_label=camids, view_label=target_view)
                             evaluator.update((feat, vid, camid))
@@ -171,11 +190,11 @@ def do_train_stage2(cfg,
                         img = img.to(device)
                         if cfg.MODEL.SIE_CAMERA:
                             camids = camids.to(device)
-                        else: 
+                        else:
                             camids = None
                         if cfg.MODEL.SIE_VIEW:
                             target_view = target_view.to(device)
-                        else: 
+                        else:
                             target_view = None
                         feat = model(img, cam_label=camids, view_label=target_view)
                         evaluator.update((feat, vid, camid))
@@ -191,6 +210,7 @@ def do_train_stage2(cfg,
     logger.info("Total running time: {}".format(total_time))
     print(cfg.OUTPUT_DIR)
 
+
 def do_inference(cfg,
                  model,
                  val_loader,
@@ -200,7 +220,6 @@ def do_inference(cfg,
     logger.info("Enter inferencing")
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
-
     evaluator.reset()
 
     if device:
@@ -217,16 +236,15 @@ def do_inference(cfg,
             img = img.to(device)
             if cfg.MODEL.SIE_CAMERA:
                 camids = camids.to(device)
-            else: 
+            else:
                 camids = None
             if cfg.MODEL.SIE_VIEW:
                 target_view = target_view.to(device)
-            else: 
+            else:
                 target_view = None
             feat = model(img, cam_label=camids, view_label=target_view)
             evaluator.update((feat, pid, camid))
             img_path_list.extend(imgpath)
-
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     logger.info("Validation Results ")
