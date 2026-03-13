@@ -23,6 +23,7 @@ def _check_prompt_feature_shapes(global_cls, local_patches):
             f"Feature dim mismatch between global_cls {tuple(global_cls.shape)} and local_patches {tuple(local_patches.shape)}"
         )
 
+
 @torch.no_grad()
 def _extract_and_cache_prompt_features(model, train_loader_stage1, device):
     labels = []
@@ -32,14 +33,15 @@ def _extract_and_cache_prompt_features(model, train_loader_stage1, device):
     model.eval()
     for _, (img, vid, target_cam, target_view) in enumerate(train_loader_stage1):
         img = img.to(device)
-        global_cls, local_patches = model(img, get_prompt_image_features=True)
+        with amp.autocast(enabled=True):
+            global_cls, local_patches = model(img, get_prompt_image_features=True)
 
         _check_prompt_feature_shapes(global_cls, local_patches)
 
         for label_i, cls_i, patches_i in zip(vid, global_cls, local_patches):
             labels.append(label_i)
-            global_cls_cache.append(cls_i.half().cpu())
-            local_patch_cache.append(patches_i.half().cpu())
+            global_cls_cache.append(cls_i.cpu())
+            local_patch_cache.append(patches_i.cpu())
 
     labels_list = torch.stack(labels, dim=0).cuda(non_blocking=True)
     global_cls_list = torch.stack(global_cls_cache, dim=0).cuda(non_blocking=True)
@@ -77,7 +79,8 @@ def do_train_stage1(cfg,
     from datetime import timedelta
     all_start_time = time.monotonic()
     logger.info("model: {}".format(model))
-    logger.info("Stage1 prompt follows FLaN-Net detail-focused generation with prompt: A photo of a S1 person with S2 clothes, S3 hairstyles, S4 shoes and carrying S5")
+    logger.info("Stage1 prompt follows FLaN-Net detail-focused generation with prompt: "
+                "A photo of a S1 person with S2 clothes, S3 hairstyles, S4 shoes and carrying S5")
 
     # Step 1: Pre-extract frozen projected CLS + local patch tokens.
     logger.info("Caching frozen CLS + patch tokens for Stage1 prompt generation...")
@@ -130,8 +133,12 @@ def do_train_stage1(cfg,
                     f"Feature dim mismatch between text_features {tuple(text_features.shape)} and global_cls {tuple(global_cls.shape)}"
                 )
 
-            loss_i2t = xent(global_cls, text_features, target, target)
-            loss_t2i = xent(text_features, global_cls, target, target)
+            # Normalize before SupCon to stabilize training
+            global_cls_norm = F.normalize(global_cls.float(), dim=1)
+            text_features_norm = F.normalize(text_features.float(), dim=1)
+
+            loss_i2t = xent(global_cls_norm, text_features_norm, target, target)
+            loss_t2i = xent(text_features_norm, global_cls_norm, target, target)
             loss = loss_i2t + loss_t2i
 
             scaler.scale(loss).backward()

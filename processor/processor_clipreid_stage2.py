@@ -120,8 +120,9 @@ def do_train_stage2(cfg,
                     f"Feature dim mismatch for Stage2 logits: image_features {tuple(image_features.shape)} vs text_features {tuple(text_features.shape)}"
                 )
 
-            logits = image_features.float() @ text_features.t()
-            loss = loss_fn(score, feat, target, target_cam, logits)
+            with amp.autocast(enabled=True):
+                logits = image_features.float() @ text_features.t()
+                loss = loss_fn(score, feat, target, target_cam, logits)
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
