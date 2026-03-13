@@ -38,9 +38,7 @@ import torch
 
 #     return optimizer
 
-
 def make_optimizer_1stage(cfg, model):
-    # Freeze everything first
     for p in model.parameters():
         p.requires_grad = False
 
@@ -48,19 +46,16 @@ def make_optimizer_1stage(cfg, model):
     found = []
 
     for name, param in model.named_parameters():
-        # Train the whole Stage1 prompt generator branch:
-        # - prompt_text_person
-        # - prompt_text_clothes / hairstyles / shoes / carrying
-        # - prompt_queries
-        # - cross_attn
-        # - cross_modal_transformer
-        # - layer norms
-        # - IM2TEXT mapper
         if "inversion_prompt_learner" in name:
             param.requires_grad = True
+
+            base_lr = float(cfg.SOLVER.STAGE1.BASE_LR)
+            safe_peak = 5e-4
+            lr = min(base_lr, safe_peak)
+
             params.append({
                 "params": [param],
-                "lr": cfg.SOLVER.STAGE1.BASE_LR,
+                "lr": lr,
                 "weight_decay": cfg.SOLVER.STAGE1.WEIGHT_DECAY
             })
             found.append(name)
@@ -77,14 +72,14 @@ def make_optimizer_1stage(cfg, model):
         momentum = getattr(cfg.SOLVER.STAGE1, "MOMENTUM", 0.9)
         optimizer = torch.optim.SGD(
             params,
-            lr=cfg.SOLVER.STAGE1.BASE_LR,
+            lr=min(float(cfg.SOLVER.STAGE1.BASE_LR), 5e-4),
             momentum=momentum,
             weight_decay=cfg.SOLVER.STAGE1.WEIGHT_DECAY
         )
     elif opt_name == "AdamW":
         optimizer = torch.optim.AdamW(
             params,
-            lr=cfg.SOLVER.STAGE1.BASE_LR,
+            lr=min(float(cfg.SOLVER.STAGE1.BASE_LR), 5e-4),
             weight_decay=cfg.SOLVER.STAGE1.WEIGHT_DECAY
         )
     else:
