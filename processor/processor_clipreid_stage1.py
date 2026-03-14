@@ -7,6 +7,7 @@ from torch.cuda import amp
 import torch.distributed as dist
 from torch.nn import functional as F
 from loss.supcontrast import SupConLoss
+from solver.make_optimizer_prompt import print_stage1_trainable
 
 
 def _check_prompt_feature_shapes(global_cls, local_patches):
@@ -70,6 +71,14 @@ def do_train_stage1(cfg,
         if torch.cuda.device_count() > 1:
             print('Using {} GPUs for training'.format(torch.cuda.device_count()))
             model = nn.DataParallel(model)
+
+    # Print stage1 trainable parameters once at start (only on main rank for DDP)
+    try:
+        if not cfg.MODEL.DIST_TRAIN or dist.get_rank() == 0:
+            print_stage1_trainable(model, optimizer)
+    except Exception:
+        # best-effort: don't fail training if print helper errors
+        pass
 
     loss_meter = AverageMeter()
     scaler = amp.GradScaler()

@@ -169,12 +169,11 @@ class DetailTokenNetwork(nn.Module):
         self.prompt_queries = nn.Parameter(torch.empty(1, num_queries, dim))
         nn.init.normal_(self.prompt_queries, std=0.02)
 
-        self.block1 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
-        self.block2 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
-        self.block3 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
-        self.block4 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
-        self.block5 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
-        self.block6 = DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout)
+        # create a dynamic list of cross-attention blocks
+        blocks = []
+        for _ in range(num_blocks):
+            blocks.append(DetailCrossAttentionBlock(dim=dim, cmt_depth=1, dropout=dropout))
+        self.blocks = nn.ModuleList(blocks)
 
         self.mapper = IM2TEXT(
             embed_dim=dim,
@@ -194,12 +193,8 @@ class DetailTokenNetwork(nn.Module):
 
         bsz = local_patches.size(0)
         queries = self.prompt_queries.expand(bsz, -1, -1)
-        queries = self.block1(queries, local_patches)
-        queries = self.block2(queries, local_patches)
-        queries = self.block3(queries, local_patches)
-        queries = self.block4(queries, local_patches)
-        queries = self.block5(queries, local_patches)
-        queries = self.block6(queries, local_patches)
+        for block in self.blocks:
+            queries = block(queries, local_patches)
         pooled = queries.mean(dim=1)
         token = self.mapper(pooled)
         return token
@@ -249,10 +244,11 @@ class InversionPromptLearner(nn.Module):
             n_layer=3,
             dropout=0.1,
         )
-        self.prompt_text_clothes = DetailTokenNetwork(dim=clip_proj_dim, num_queries=3, num_blocks=6, dropout=0.1)
-        self.prompt_text_hairstyles = DetailTokenNetwork(dim=clip_proj_dim, num_queries=3, num_blocks=6, dropout=0.1)
-        self.prompt_text_shoes = DetailTokenNetwork(dim=clip_proj_dim, num_queries=3, num_blocks=6, dropout=0.1)
-        self.prompt_text_carrying = DetailTokenNetwork(dim=clip_proj_dim, num_queries=3, num_blocks=6, dropout=0.1)
+        # Use 2 queries and 4 cross-attention blocks for detail token networks in Stage1
+        self.prompt_text_clothes = DetailTokenNetwork(dim=clip_proj_dim, num_queries=2, num_blocks=4, dropout=0.1)
+        self.prompt_text_hairstyles = DetailTokenNetwork(dim=clip_proj_dim, num_queries=2, num_blocks=4, dropout=0.1)
+        self.prompt_text_shoes = DetailTokenNetwork(dim=clip_proj_dim, num_queries=2, num_blocks=4, dropout=0.1)
+        self.prompt_text_carrying = DetailTokenNetwork(dim=clip_proj_dim, num_queries=2, num_blocks=4, dropout=0.1)
 
     def forward(self, global_cls, local_patches):
         if global_cls.dim() != 2:

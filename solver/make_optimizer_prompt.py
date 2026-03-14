@@ -124,3 +124,26 @@ def make_optimizer_2stage(cfg, model, center_criterion):
     optimizer_center = torch.optim.SGD(center_criterion.parameters(), lr=cfg.SOLVER.STAGE2.CENTER_LR)
 
     return optimizer, optimizer_center
+
+
+def print_stage1_trainable(model, optimizer=None):
+    """
+    Print parameters trained in stage1 (those under 'inversion_prompt_learner'),
+    and their lr/weight_decay if `optimizer` (from make_optimizer_1stage) is provided.
+    """
+    m = model.module if hasattr(model, "module") else model
+    found = False
+    for name, param in m.named_parameters():
+        if "inversion_prompt_learner" in name and param.requires_grad:
+            found = True
+            lr = None
+            wd = None
+            if optimizer is not None:
+                for g in optimizer.param_groups:
+                    if any(p is param for p in g.get("params", [])):
+                        lr = g.get("lr")
+                        wd = g.get("weight_decay")
+                        break
+            print(f"{name}: shape={tuple(param.shape)}, lr={lr}, weight_decay={wd}")
+    if not found:
+        print("No trainable parameters found under 'inversion_prompt_learner'.")
